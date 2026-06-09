@@ -302,12 +302,13 @@
       if(score!==null){grammarScore=score;grammarChecked=true;updateSidebar()}
     });
 
-    function answersLog(data,prefix,label){
+    function answersLog(data,prefix){
       return data.map(function(q,i){
         const selected=document.querySelector('input[name="'+prefix+i+'"]:checked');
         const value=selected?parseInt(selected.value,10):-1;
-        const answer=value>=0?q[1][value]:"No answer";
-        return label+(i+1)+": "+answer+" ("+(value===q[2]?"V":"X")+")";
+        const chosen=value>=0?letters[value]:"-";
+        const correct=letters[q[2]];
+        return (value===q[2]?"✅":"❌")+" Q"+(i+1)+": "+chosen+" (correct: "+correct+")";
       }).join("\n");
     }
     document.getElementById("submitBtn").addEventListener("click",function(){
@@ -327,7 +328,7 @@
       document.getElementById("resultComp").textContent=compScore;
       document.getElementById("resultGrammar").textContent=grammarScore;
       document.getElementById("verdict").textContent=total>=18?"Excellent!":total>=14?"Good!":total>=10?"Satisfactory":"Keep practising!";
-      const log=answersLog(comp,"c","C")+ "\n" + answersLog(grammar,"g","G");
+      const log="comprehension\n"+answersLog(comp,"c")+"\n\ngrammar\n"+answersLog(grammar,"g");
       const status=document.getElementById("sendStatus");
       status.textContent="Sending...";
       fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({_subject:"Video Quiz | Real Estate Tour | "+name+" | "+total+"/20",lesson:"Video Quiz | Real Estate Tour",student_name:name,total:total+"/20",comprehension:compScore+"/10",grammar:grammarScore+"/10",message:"Student: "+name+"\nTotal: "+total+"/20\nComprehension: "+compScore+"/10\nGrammar & Vocab: "+grammarScore+"/10\n\nAnswers:\n"+log})}).then(function(response){
