@@ -224,6 +224,7 @@
       ["While I ___ TV, my friend called me.",["watched","was watching","have watched","watch"],1]
     ];
     let cardIndex=0,compScore=0,grammarScore=0,compChecked=false,grammarChecked=false;
+    const storageKey="eduproberegova:real-estate-b1-2-2:submitted:v1";
     const letters=["A","B","C","D"];
 
     document.querySelectorAll(".section-toggle").forEach(function(btn){
@@ -258,9 +259,13 @@
     renderQuestions(comp,"compQuestions","c");
     renderQuestions(grammar,"grammarQuestions","g");
 
-    document.addEventListener("change",function(){
+    function updateAnsweredProgress(){
       const answered=document.querySelectorAll('#compQuestions input:checked,#grammarQuestions input:checked').length;
       document.getElementById("progressFill").style.width=Math.round(answered/20*100)+"%";
+    }
+
+    document.addEventListener("change",function(){
+      updateAnsweredProgress();
     });
 
     function checkBlock(data,prefix,errorId,badgeId,buttonId){
@@ -311,6 +316,66 @@
         return (value===q[2]?"✅":"❌")+" Q"+(i+1)+": "+chosen+" (correct: "+correct+")";
       }).join("\n");
     }
+
+    function collectSelected(prefix,data){
+      return data.map(function(_,i){
+        const selected=document.querySelector('input[name="'+prefix+i+'"]:checked');
+        return selected?selected.value:null;
+      });
+    }
+
+    function saveSubmittedState(total,log,statusText){
+      const payload={
+        studentName:document.getElementById("studentName").value.trim(),
+        compAnswers:collectSelected("c",comp),
+        grammarAnswers:collectSelected("g",grammar),
+        compScore,
+        grammarScore,
+        total,
+        compChecked,
+        grammarChecked,
+        verdict:document.getElementById("verdict").textContent,
+        sendStatus:statusText||document.getElementById("sendStatus").textContent,
+        log,
+        submittedAt:new Date().toISOString()
+      };
+      try{localStorage.setItem(storageKey,JSON.stringify(payload));}catch(e){}
+    }
+
+    function restoreRadioAnswers(prefix,answers){
+      if(!Array.isArray(answers))return;
+      answers.forEach(function(value,i){
+        if(value===null||value===undefined)return;
+        const input=document.querySelector('input[name="'+prefix+i+'"][value="'+value+'"]');
+        if(input)input.checked=true;
+      });
+    }
+
+    function showStoredResult(saved){
+      document.getElementById("quizArea").style.display="block";
+      document.getElementById("result").style.display="block";
+      document.getElementById("resultTotal").textContent=saved.total;
+      document.getElementById("resultComp").textContent=saved.compScore;
+      document.getElementById("resultGrammar").textContent=saved.grammarScore;
+      document.getElementById("verdict").textContent=saved.verdict||((saved.total>=18)?"Excellent!":saved.total>=14?"Good!":saved.total>=10?"Satisfactory":"Keep practising!");
+      const status=document.getElementById("sendStatus");
+      status.textContent=saved.sendStatus||"Submitted successfully! Your answers are saved on this device.";
+      status.className="sent";
+    }
+
+    function restoreSubmittedState(){
+      let saved=null;
+      try{saved=JSON.parse(localStorage.getItem(storageKey)||"null");}catch(e){saved=null;}
+      if(!saved)return;
+      if(saved.studentName)document.getElementById("studentName").value=saved.studentName;
+      restoreRadioAnswers("c",saved.compAnswers);
+      restoreRadioAnswers("g",saved.grammarAnswers);
+      updateAnsweredProgress();
+      if(saved.compChecked){const score=checkBlock(comp,"c","compError","compBadge","checkComp"); if(score!==null){compScore=score;compChecked=true;}}
+      if(saved.grammarChecked){const score=checkBlock(grammar,"g","grammarError","grammarBadge","checkGrammar"); if(score!==null){grammarScore=score;grammarChecked=true;}}
+      updateSidebar();
+      showStoredResult(saved);
+    }
     document.getElementById("submitBtn").addEventListener("click",function(){
       const name=document.getElementById("studentName").value.trim();
       const allAnswered=document.querySelectorAll('#compQuestions input:checked,#grammarQuestions input:checked').length===20;
@@ -321,7 +386,7 @@
       if(!grammarChecked)grammarScore=checkBlock(grammar,"g","grammarError","grammarBadge","checkGrammar");
       compChecked=true;grammarChecked=true;updateSidebar();
       const total=compScore+grammarScore;
-      document.getElementById("quizArea").style.display="none";
+      document.getElementById("quizArea").style.display="block";
       document.getElementById("result").style.display="block";
       document.getElementById("result").scrollIntoView({behavior:"smooth"});
       document.getElementById("resultTotal").textContent=total;
@@ -331,11 +396,13 @@
       const log="comprehension\n"+answersLog(comp,"c")+"\n\ngrammar\n"+answersLog(grammar,"g");
       const status=document.getElementById("sendStatus");
       status.textContent="Sending...";
+      saveSubmittedState(total,log,"Sending...");
       fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({_subject:"Video Quiz | Real Estate Tour | "+name+" | "+total+"/20",lesson:"Video Quiz | Real Estate Tour",student_name:name,total:total+"/20",comprehension:compScore+"/10",grammar:grammarScore+"/10",message:"Student: "+name+"\nTotal: "+total+"/20\nComprehension: "+compScore+"/10\nGrammar & Vocab: "+grammarScore+"/10\n\nAnswers:\n"+log})}).then(function(response){
-        if(response.ok){status.textContent="Submitted successfully!";status.className="sent"}
-        else{status.textContent="Submission error. Please note your score.";status.className="sent fail"}
-      }).catch(function(){status.textContent="Submission error. Please note your score.";status.className="sent fail"});
+        if(response.ok){status.textContent="Submitted successfully!";status.className="sent";saveSubmittedState(total,log,status.textContent)}
+        else{status.textContent="Submission error. Please note your score.";status.className="sent fail";saveSubmittedState(total,log,status.textContent)}
+      }).catch(function(){status.textContent="Submission error. Please note your score.";status.className="sent fail";saveSubmittedState(total,log,status.textContent)});
     });
+    restoreSubmittedState();
   </script>
 </body>
 </html>
